@@ -197,7 +197,7 @@ def import_excel():
     
     return render_template('import.html')
 
-@app.route('/export')
+@app.route('/export', endpoint='export')
 def export_excel():
     """Export accounts to Excel file"""
     conn = get_db_connection()
