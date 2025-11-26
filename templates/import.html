@@ -4,136 +4,71 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>导入Excel - 账户信息管理系统</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #555;
-        }
-        input[type="file"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        .btn {
-            display: inline-block;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            border: none;
-            cursor: pointer;
-        }
-        .btn:hover {
-            background-color: #0056b3;
-        }
-        .btn-secondary {
-            background-color: #6c757d;
-        }
-        .btn-secondary:hover {
-            background-color: #545b62;
-        }
-        .form-actions {
-            text-align: center;
-            margin-top: 30px;
-        }
-        .flash-messages {
-            margin-bottom: 20px;
-        }
-        .flash-message {
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .flash-message.error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .instructions {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        .instructions h3 {
-            margin-top: 0;
-        }
-        .instructions ul {
-            margin-bottom: 0;
-        }
-    </style>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
 </head>
 <body>
-    <div class="container">
-        <h1>导入Excel文件</h1>
-        
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                <div class="flash-messages">
-                    {% for message in messages %}
-                        <div class="flash-message {% if '失败' in message or '错误' in message %}error{% endif %}">{{ message }}</div>
-                    {% endfor %}
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="text-center">
+                            <i class="bi bi-file-earmark-excel me-2"></i>导入Excel文件
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        {% with messages = get_flashed_messages() %}
+                            {% if messages %}
+                                <div class="alert alert-info">
+                                    {% for message in messages %}
+                                        <div class="alert {% if '失败' in message or '错误' in message %}alert-danger{% else %}alert-success{% endif %}">{{ message }}</div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% endwith %}
+                        
+                        <div class="alert alert-info">
+                            <h5 class="alert-heading">导入说明：</h5>
+                            <ul class="mb-0">
+                                <li>支持 .xlsx 和 .xls 格式的Excel文件</li>
+                                <li>Excel文件应包含以下列（列名可以是中文或按顺序排列）：
+                                    <ul>
+                                        <li>用户姓名（必填）</li>
+                                        <li>账号</li>
+                                        <li>资产编号</li>
+                                        <li>计算机名</li>
+                                        <li>联系电话</li>
+                                        <li>所在部门</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <form method="POST" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="file" class="form-label">选择Excel文件</label>
+                                <input type="file" class="form-control" id="file" name="file" accept=".xlsx,.xls" required>
+                            </div>
+                            
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                                <button type="submit" class="btn btn-success me-md-2">
+                                    <i class="bi bi-upload"></i> 导入文件
+                                </button>
+                                <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                                    <i class="bi bi-x-circle"></i> 取消
+                                </a>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            {% endif %}
-        {% endwith %}
-        
-        <div class="instructions">
-            <h3>导入说明：</h3>
-            <ul>
-                <li>支持 .xlsx 和 .xls 格式的Excel文件</li>
-                <li>Excel文件应包含以下列（列名可以是中文或按顺序排列）：
-                    <ul>
-                        <li>用户姓名（必填）</li>
-                        <li>账号</li>
-                        <li>资产编号</li>
-                        <li>计算机名</li>
-                        <li>联系电话</li>
-                        <li>所在部门</li>
-                    </ul>
-                </li>
-            </ul>
+            </div>
         </div>
-        
-        <form method="POST" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="file">选择Excel文件</label>
-                <input type="file" id="file" name="file" accept=".xlsx,.xls" required>
-            </div>
-            
-            <div class="form-actions">
-                <button type="submit" class="btn">导入文件</button>
-                <a href="{{ url_for('index') }}" class="btn btn-secondary">取消</a>
-            </div>
-        </form>
     </div>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
