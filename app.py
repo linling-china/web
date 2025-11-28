@@ -22,6 +22,7 @@ def init_db():
     """Initialize the database with accounts table"""
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
+    # Create table if it doesn't exist
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS accounts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,9 +31,18 @@ def init_db():
             asset_number TEXT,
             computer_name TEXT,
             phone_number TEXT,
-            department TEXT
+            department TEXT,
+            network_area TEXT DEFAULT '生产网'
         )
     ''')
+    # Add network_area column if it doesn't exist (for existing tables)
+    try:
+        cursor.execute('ALTER TABLE accounts ADD COLUMN network_area TEXT DEFAULT "生产网"')
+    except sqlite3.OperationalError:
+        # Column already exists
+        pass
+    # Update existing records to set network_area to '生产网' if it's NULL
+    cursor.execute('UPDATE accounts SET network_area = "生产网" WHERE network_area IS NULL')
     conn.commit()
     conn.close()
 
@@ -64,6 +74,7 @@ def add_account():
         computer_name = request.form['computer_name']
         phone_number = request.form['phone_number']
         department = request.form['department']
+        network_area = request.form['network_area'] or '生产网'
         
         if not user_name:
             flash('用户姓名是必填项')
@@ -71,9 +82,9 @@ def add_account():
         
         conn = get_db_connection()
         conn.execute('''
-            INSERT INTO accounts (user_name, account_number, asset_number, computer_name, phone_number, department)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (user_name, account_number, asset_number, computer_name, phone_number, department))
+            INSERT INTO accounts (user_name, account_number, asset_number, computer_name, phone_number, department, network_area)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (user_name, account_number, asset_number, computer_name, phone_number, department, network_area))
         conn.commit()
         conn.close()
         
@@ -95,6 +106,7 @@ def edit_account(id):
         computer_name = request.form['computer_name']
         phone_number = request.form['phone_number']
         department = request.form['department']
+        network_area = request.form['network_area'] or '生产网'
         
         if not user_name:
             flash('用户姓名是必填项')
@@ -102,9 +114,9 @@ def edit_account(id):
         
         conn.execute('''
             UPDATE accounts
-            SET user_name = ?, account_number = ?, asset_number = ?, computer_name = ?, phone_number = ?, department = ?
+            SET user_name = ?, account_number = ?, asset_number = ?, computer_name = ?, phone_number = ?, department = ?, network_area = ?
             WHERE id = ?
-        ''', (user_name, account_number, asset_number, computer_name, phone_number, department, id))
+        ''', (user_name, account_number, asset_number, computer_name, phone_number, department, network_area, id))
         conn.commit()
         conn.close()
         
@@ -150,7 +162,12 @@ def import_excel():
                 # Or we can check if these exact column names exist
                 if '用户姓名' not in df.columns:
                     # If standard names don't exist, assume they are in order: user_name, account_number, etc.
-                    df.columns = ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department']
+                    # Check if we have 7 columns (including network_area)
+                    if len(df.columns) >= 7:
+                        df.columns = ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department', 'network_area']
+                    else:
+                        df.columns = ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department']
+                        df['network_area'] = '生产网'
                 else:
                     # Map Chinese column names to database field names
                     column_mapping = {
@@ -159,28 +176,30 @@ def import_excel():
                         '资产编号': 'asset_number',
                         '计算机名': 'computer_name',
                         '联系电话': 'phone_number',
-                        '所在部门': 'department'
+                        '所在部门': 'department',
+                        '网络区域': 'network_area'
                     }
                     df = df.rename(columns=column_mapping)
                     
                     # Ensure all required columns exist after mapping
-                    for col in ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department']:
+                    for col in ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department', 'network_area']:
                         if col not in df.columns:
-                            df[col] = ''  # Add missing columns with empty values
+                            df[col] = '' if col != 'network_area' else '生产网'  # Add missing columns with empty values, default network_area to '生产网'
                 
                 # Insert data into database
                 conn = get_db_connection()
                 for _, row in df.iterrows():
                     conn.execute('''
-                        INSERT INTO accounts (user_name, account_number, asset_number, computer_name, phone_number, department)
-                        VALUES (?, ?, ?, ?, ?, ?)
+                        INSERT INTO accounts (user_name, account_number, asset_number, computer_name, phone_number, department, network_area)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         row.get('user_name', ''),
                         row.get('account_number', ''),
                         row.get('asset_number', ''),
                         row.get('computer_name', ''),
                         row.get('phone_number', ''),
-                        row.get('department', '')
+                        row.get('department', ''),
+                        row.get('network_area', '生产网')
                     ))
                 conn.commit()
                 conn.close()
@@ -205,19 +224,20 @@ def export_excel():
     conn.close()
     
     # Convert to DataFrame
-    df = pd.DataFrame(accounts, columns=['ID', '用户姓名', '账号', '资产编号', '计算机名', '联系电话', '所在部门'])
+    df = pd.DataFrame(accounts)
     # Rename columns to Chinese names for the export
     df = df.rename(columns={
-        'ID': 'ID',
+        'id': 'ID',
         'user_name': '用户姓名',
         'account_number': '账号', 
         'asset_number': '资产编号',
         'computer_name': '计算机名',
         'phone_number': '联系电话',
-        'department': '所在部门'
+        'department': '所在部门',
+        'network_area': '网络区域'
     })
     # Remove the ID column for export as it's internal
-    df = df[['用户姓名', '账号', '资产编号', '计算机名', '联系电话', '所在部门']]
+    df = df[['用户姓名', '账号', '资产编号', '计算机名', '联系电话', '所在部门', '网络区域']]
     
     # Create a BytesIO buffer
     output = io.BytesIO()

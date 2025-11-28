@@ -1,1 +1,32 @@
-(empty)
+# IDE directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Python dependencies
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Uploads directory
+uploads/
+
+# Database files
+*.db-journal
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local

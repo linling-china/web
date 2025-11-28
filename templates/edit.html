@@ -120,6 +120,15 @@
                 <input type="text" id="department" name="department" value="{{ account['department'] or '' }}">
             </div>
             
+            <div class="form-group">
+                <label for="network_area">网络区域</label>
+                <select id="network_area" name="network_area" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    <option value="管理网" {% if account['network_area'] == '管理网' %}selected{% endif %}>管理网</option>
+                    <option value="生产网" {% if account['network_area'] == '生产网' or not account['network_area'] %}selected{% endif %}>生产网</option>
+                    <option value="金融网" {% if account['network_area'] == '金融网' %}selected{% endif %}>金融网</option>
+                </select>
+            </div>
+            
             <div class="form-actions">
                 <button type="submit" class="btn">更新账户</button>
                 <a href="{{ url_for('index') }}" class="btn btn-secondary">取消</a>
