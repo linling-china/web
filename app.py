@@ -32,7 +32,8 @@ def init_db():
             computer_name TEXT,
             phone_number TEXT,
             department TEXT,
-            network_area TEXT DEFAULT '生产网'
+            network_area TEXT DEFAULT '生产网',
+            account_status TEXT DEFAULT '在用'
         )
     ''')
     # Add network_area column if it doesn't exist (for existing tables)
@@ -41,8 +42,16 @@ def init_db():
     except sqlite3.OperationalError:
         # Column already exists
         pass
+    # Add account_status column if it doesn't exist (for existing tables)
+    try:
+        cursor.execute('ALTER TABLE accounts ADD COLUMN account_status TEXT DEFAULT "在用"')
+    except sqlite3.OperationalError:
+        # Column already exists
+        pass
     # Update existing records to set network_area to '生产网' if it's NULL
     cursor.execute('UPDATE accounts SET network_area = "生产网" WHERE network_area IS NULL')
+    # Update existing records to set account_status to '在用' if it's NULL
+    cursor.execute('UPDATE accounts SET account_status = "在用" WHERE account_status IS NULL')
     conn.commit()
     conn.close()
 
@@ -55,6 +64,44 @@ def get_db_connection():
 def allowed_file(filename):
     """Check if file extension is allowed"""
     return os.path.splitext(filename)[1].lower() in ALLOWED_EXTENSIONS
+
+def get_prefixes_by_network_area(network_area):
+    """Get prefixes based on network area"""
+    prefixes = {
+        '管理网': {
+            'account_number': 'foc-',
+            'asset_number': 'g-fj-foc-',
+            'computer_name': 'G-FJ-FOC-'
+        },
+        '生产网': {
+            'account_number': 'foc-d-',
+            'asset_number': 'z-fj-foc-',
+            'computer_name': 'Z-FJ-FOC-'
+        },
+        '金融网': {
+            'account_number': 'foc-d-',
+            'asset_number': 'l-fj-foc-',
+            'computer_name': 'L-FJ-FOC-'
+        }
+    }
+    return prefixes.get(network_area, prefixes['生产网'])
+
+def add_prefix(value, prefix):
+    """Add prefix to value if it doesn't already have it"""
+    if not value:
+        return ''
+    if value.startswith(prefix):
+        return value
+    return f"{prefix}{value}"
+
+def remove_prefix(value, prefixes):
+    """Remove any of the given prefixes from value"""
+    if not value:
+        return ''
+    for prefix in prefixes:
+        if value.startswith(prefix):
+            return value[len(prefix):]
+    return value
 
 @app.route('/')
 def index():
@@ -70,21 +117,43 @@ def add_account():
     if request.method == 'POST':
         user_name = request.form['user_name']
         account_number = request.form['account_number']
-        asset_number = request.form['asset_number']
+        # asset_number is now auto-generated, ignore user input
         computer_name = request.form['computer_name']
         phone_number = request.form['phone_number']
         department = request.form['department']
         network_area = request.form['network_area'] or '生产网'
+        account_status = request.form['account_status'] or '在用'
         
         if not user_name:
             flash('用户姓名是必填项')
             return redirect(url_for('add_account'))
         
+        # Get prefixes based on network area
+        prefixes = get_prefixes_by_network_area(network_area)
+        
+        # Add prefixes to fields (except asset_number which will be auto-generated)
+        account_number = add_prefix(account_number, prefixes['account_number'])
+        computer_name = add_prefix(computer_name, prefixes['computer_name'])
+        
         conn = get_db_connection()
-        conn.execute('''
-            INSERT INTO accounts (user_name, account_number, asset_number, computer_name, phone_number, department, network_area)
+        # Insert record without asset_number (will be auto-generated later)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO accounts (user_name, account_number, computer_name, phone_number, department, network_area, account_status)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (user_name, account_number, asset_number, computer_name, phone_number, department, network_area))
+        ''', (user_name, account_number, computer_name, phone_number, department, network_area, account_status))
+        
+        # Get the generated id
+        account_id = cursor.lastrowid
+        
+        # Auto-generate asset_number: prefix + id
+        asset_number = f"{prefixes['asset_number']}{account_id}"
+        
+        # Update the record with the generated asset_number
+        cursor.execute('''
+            UPDATE accounts SET asset_number = ? WHERE id = ?
+        ''', (asset_number, account_id))
+        
         conn.commit()
         conn.close()
         
@@ -102,21 +171,38 @@ def edit_account(id):
     if request.method == 'POST':
         user_name = request.form['user_name']
         account_number = request.form['account_number']
-        asset_number = request.form['asset_number']
+        # asset_number is auto-generated, don't modify it
         computer_name = request.form['computer_name']
         phone_number = request.form['phone_number']
         department = request.form['department']
         network_area = request.form['network_area'] or '生产网'
+        account_status = request.form['account_status'] or '在用'
         
         if not user_name:
             flash('用户姓名是必填项')
             return render_template('edit.html', account=account)
         
+        # Get all possible prefixes for removal
+        all_account_prefixes = ['foc-', 'foc-d-']
+        all_computer_prefixes = ['G-FJ-FOC-', 'Z-FJ-FOC-', 'L-FJ-FOC-']
+        
+        # Get new prefixes based on network area
+        prefixes = get_prefixes_by_network_area(network_area)
+        
+        # Remove old prefixes and add new ones
+        account_number = remove_prefix(account_number, all_account_prefixes)
+        account_number = add_prefix(account_number, prefixes['account_number'])
+        
+        # asset_number is auto-generated, don't modify it
+        
+        computer_name = remove_prefix(computer_name, all_computer_prefixes)
+        computer_name = add_prefix(computer_name, prefixes['computer_name'])
+        
         conn.execute('''
             UPDATE accounts
-            SET user_name = ?, account_number = ?, asset_number = ?, computer_name = ?, phone_number = ?, department = ?, network_area = ?
+            SET user_name = ?, account_number = ?, computer_name = ?, phone_number = ?, department = ?, network_area = ?, account_status = ?
             WHERE id = ?
-        ''', (user_name, account_number, asset_number, computer_name, phone_number, department, network_area, id))
+        ''', (user_name, account_number, computer_name, phone_number, department, network_area, account_status, id))
         conn.commit()
         conn.close()
         
@@ -162,12 +248,16 @@ def import_excel():
                 # Or we can check if these exact column names exist
                 if '用户姓名' not in df.columns:
                     # If standard names don't exist, assume they are in order: user_name, account_number, etc.
-                    # Check if we have 7 columns (including network_area)
-                    if len(df.columns) >= 7:
+                    # Check if we have 8 columns (including network_area and account_status)
+                    if len(df.columns) >= 8:
+                        df.columns = ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department', 'network_area', 'account_status']
+                    elif len(df.columns) >= 7:
                         df.columns = ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department', 'network_area']
+                        df['account_status'] = '在用'
                     else:
                         df.columns = ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department']
                         df['network_area'] = '生产网'
+                        df['account_status'] = '在用'
                 else:
                     # Map Chinese column names to database field names
                     column_mapping = {
@@ -177,30 +267,76 @@ def import_excel():
                         '计算机名': 'computer_name',
                         '联系电话': 'phone_number',
                         '所在部门': 'department',
-                        '网络区域': 'network_area'
+                        '网络区域': 'network_area',
+                        '账号状态': 'account_status'
                     }
                     df = df.rename(columns=column_mapping)
                     
                     # Ensure all required columns exist after mapping
-                    for col in ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department', 'network_area']:
+                    for col in ['user_name', 'account_number', 'asset_number', 'computer_name', 'phone_number', 'department', 'network_area', 'account_status']:
                         if col not in df.columns:
-                            df[col] = '' if col != 'network_area' else '生产网'  # Add missing columns with empty values, default network_area to '生产网'
+                            if col == 'network_area':
+                                df[col] = '生产网'
+                            elif col == 'account_status':
+                                df[col] = '在用'
+                            else:
+                                df[col] = ''
+                
+                # Get all possible prefixes for removal
+                all_account_prefixes = ['foc-', 'foc-d-']
+                all_computer_prefixes = ['G-FJ-FOC-', 'Z-FJ-FOC-', 'L-FJ-FOC-']
                 
                 # Insert data into database
                 conn = get_db_connection()
+                cursor = conn.cursor()
+                
                 for _, row in df.iterrows():
-                    conn.execute('''
-                        INSERT INTO accounts (user_name, account_number, asset_number, computer_name, phone_number, department, network_area)
+                    user_name = row.get('user_name', '')
+                    account_number = row.get('account_number', '')
+                    # asset_number is now auto-generated, ignore user input
+                    computer_name = row.get('computer_name', '')
+                    phone_number = row.get('phone_number', '')
+                    department = row.get('department', '')
+                    network_area = row.get('network_area', '生产网')
+                    account_status = row.get('account_status', '在用')
+                    
+                    # Get prefixes based on network area
+                    prefixes = get_prefixes_by_network_area(network_area)
+                    
+                    # Remove old prefixes and add new ones
+                    account_number = remove_prefix(account_number, all_account_prefixes)
+                    account_number = add_prefix(account_number, prefixes['account_number'])
+                    
+                    # asset_number is auto-generated, don't modify it here
+                    
+                    computer_name = remove_prefix(computer_name, all_computer_prefixes)
+                    computer_name = add_prefix(computer_name, prefixes['computer_name'])
+                    
+                    # Insert record without asset_number (will be auto-generated later)
+                    cursor.execute('''
+                        INSERT INTO accounts (user_name, account_number, computer_name, phone_number, department, network_area, account_status)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     ''', (
-                        row.get('user_name', ''),
-                        row.get('account_number', ''),
-                        row.get('asset_number', ''),
-                        row.get('computer_name', ''),
-                        row.get('phone_number', ''),
-                        row.get('department', ''),
-                        row.get('network_area', '生产网')
+                        user_name,
+                        account_number,
+                        computer_name,
+                        phone_number,
+                        department,
+                        network_area,
+                        account_status
                     ))
+                    
+                    # Get the generated id
+                    account_id = cursor.lastrowid
+                    
+                    # Auto-generate asset_number: prefix + id
+                    asset_number = f"{prefixes['asset_number']}{account_id}"
+                    
+                    # Update the record with the generated asset_number
+                    cursor.execute('''
+                        UPDATE accounts SET asset_number = ? WHERE id = ?
+                    ''', (asset_number, account_id))
+                
                 conn.commit()
                 conn.close()
                 
@@ -234,10 +370,11 @@ def export_excel():
         'computer_name': '计算机名',
         'phone_number': '联系电话',
         'department': '所在部门',
-        'network_area': '网络区域'
+        'network_area': '网络区域',
+        'account_status': '账号状态'
     })
     # Remove the ID column for export as it's internal
-    df = df[['用户姓名', '账号', '资产编号', '计算机名', '联系电话', '所在部门', '网络区域']]
+    df = df[['用户姓名', '账号', '资产编号', '计算机名', '联系电话', '所在部门', '网络区域', '账号状态']]
     
     # Create a BytesIO buffer
     output = io.BytesIO()

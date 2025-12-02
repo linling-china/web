@@ -96,18 +96,31 @@
             </div>
             
             <div class="form-group">
-                <label for="account_number">账号</label>
-                <input type="text" id="account_number" name="account_number" value="{{ account['account_number'] or '' }}">
+                <label for="network_area">网络区域</label>
+                <select id="network_area" name="network_area" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    <option value="管理网" {% if account['network_area'] == '管理网' %}selected{% endif %}>管理网</option>
+                    <option value="生产网" {% if account['network_area'] == '生产网' or not account['network_area'] %}selected{% endif %}>生产网</option>
+                    <option value="金融网" {% if account['network_area'] == '金融网' %}selected{% endif %}>金融网</option>
+                </select>
             </div>
             
             <div class="form-group">
-                <label for="asset_number">资产编号</label>
-                <input type="text" id="asset_number" name="asset_number" value="{{ account['asset_number'] or '' }}">
+                <label for="account_number">账号</label>
+                <div style="display: flex; align-items: center;">
+                    <span id="accountPrefix" style="background-color: #e9ecef; padding: 10px; border: 1px solid #ddd; border-right: none; border-radius: 4px 0 0 4px; font-weight: bold;">foc-d-</span>
+                    <input type="text" id="account_number" name="account_number" value="{{ account['account_number'] or '' }}" style="flex: 1; border-radius: 0 4px 4px 0;">
+                </div>
             </div>
+            
+            <!-- Asset number is auto-generated, no need to display -->
+            <input type="hidden" id="asset_number" name="asset_number" value="{{ account['asset_number'] or '' }}">
             
             <div class="form-group">
                 <label for="computer_name">计算机名</label>
-                <input type="text" id="computer_name" name="computer_name" value="{{ account['computer_name'] or '' }}">
+                <div style="display: flex; align-items: center;">
+                    <span id="computerPrefix" style="background-color: #e9ecef; padding: 10px; border: 1px solid #ddd; border-right: none; border-radius: 4px 0 0 4px; font-weight: bold;">Z-FJ-FOC-</span>
+                    <input type="text" id="computer_name" name="computer_name" value="{{ account['computer_name'] or '' }}" style="flex: 1; border-radius: 0 4px 4px 0;">
+                </div>
             </div>
             
             <div class="form-group">
@@ -121,11 +134,11 @@
             </div>
             
             <div class="form-group">
-                <label for="network_area">网络区域</label>
-                <select id="network_area" name="network_area" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
-                    <option value="管理网" {% if account['network_area'] == '管理网' %}selected{% endif %}>管理网</option>
-                    <option value="生产网" {% if account['network_area'] == '生产网' or not account['network_area'] %}selected{% endif %}>生产网</option>
-                    <option value="金融网" {% if account['network_area'] == '金融网' %}selected{% endif %}>金融网</option>
+                <label for="account_status">账号状态</label>
+                <select id="account_status" name="account_status" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    <option value="在用" {% if account['account_status'] == '在用' %}selected{% endif %}>在用</option>
+                    <option value="停用" {% if account['account_status'] == '停用' %}selected{% endif %}>停用</option>
+                    <option value="删除" {% if account['account_status'] == '删除' %}selected{% endif %}>删除</option>
                 </select>
             </div>
             
@@ -134,6 +147,77 @@
                 <a href="{{ url_for('index') }}" class="btn btn-secondary">取消</a>
             </div>
         </form>
+        
+        <script>
+            // 前缀规则，与后端保持一致
+            const prefixRules = {
+                '管理网': {
+                    'account_number': 'foc-',
+                    'asset_number': 'g-fj-foc-',
+                    'computer_name': 'G-FJ-FOC-' 
+                },
+                '生产网': {
+                    'account_number': 'foc-d-',
+                    'asset_number': 'z-fj-foc-',
+                    'computer_name': 'Z-FJ-FOC-' 
+                },
+                '金融网': {
+                    'account_number': 'foc-d-',
+                    'asset_number': 'l-fj-foc-',
+                    'computer_name': 'L-FJ-FOC-' 
+                }
+            };
+            
+            // 所有可能的前缀，用于移除现有前缀
+            const allAccountPrefixes = ['foc-', 'foc-d-'];
+            const allAssetPrefixes = ['g-fj-foc-', 'z-fj-foc-', 'l-fj-foc-'];
+            const allComputerPrefixes = ['G-FJ-FOC-', 'Z-FJ-FOC-', 'L-FJ-FOC-'];
+            
+            // 移除现有前缀，优先匹配更长的前缀
+            function removeExistingPrefix(value, prefixes) {
+                if (!value) return '';
+                // 按长度降序排序，优先匹配更长的前缀
+                const sortedPrefixes = [...prefixes].sort((a, b) => b.length - a.length);
+                for (const prefix of sortedPrefixes) {
+                    if (value.startsWith(prefix)) {
+                        return value.substring(prefix.length);
+                    }
+                }
+                return value;
+            }
+            
+            // 更新前缀显示
+            function updatePrefixDisplay() {
+                const networkArea = document.getElementById('network_area').value;
+                const prefixes = prefixRules[networkArea] || prefixRules['生产网'];
+                
+                // 更新前缀显示
+                document.getElementById('accountPrefix').textContent = prefixes.account_number;
+                // asset_prefix is no longer used, asset number is auto-generated and read-only
+                document.getElementById('computerPrefix').textContent = prefixes.computer_name;
+            }
+            
+            // 初始化：移除输入框中的现有前缀
+            function initForm() {
+                // 移除输入框中的现有前缀
+                const accountInput = document.getElementById('account_number');
+                accountInput.value = removeExistingPrefix(accountInput.value, allAccountPrefixes);
+                
+                // asset_number is auto-generated and read-only, no need to process it
+                
+                const computerInput = document.getElementById('computer_name');
+                computerInput.value = removeExistingPrefix(computerInput.value, allComputerPrefixes);
+                
+                // 更新前缀显示
+                updatePrefixDisplay();
+            }
+            
+            // 监听网络区域变化
+            document.getElementById('network_area').addEventListener('change', updatePrefixDisplay);
+            
+            // 初始化表单
+            initForm();
+        </script>
     </div>
 </body>
 </html>

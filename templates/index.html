@@ -70,6 +70,18 @@
         tr:hover {
             background-color: #f5f5f5;
         }
+        /* 账号状态样式 */
+        .status-deleted {
+            text-decoration: line-through;
+            color: #999;
+        }
+        .status-disabled {
+            color: #6c757d;
+            font-style: italic;
+        }
+        .status-active {
+            color: #28a745;
+        }
         .actions {
             white-space: nowrap;
         }
@@ -144,12 +156,14 @@
                     <th>联系电话</th>
                     <th>所在部门</th>
                     <th>网络区域</th>
+                    <th>账号状态</th>
                     <th>操作</th>
                 </tr>
             </thead>
             <tbody>
                 {% for account in accounts %}
-                <tr>
+                {% set status = account['account_status'] or '在用' %}
+                <tr class="{{ 'status-deleted' if status == '删除' else 'status-disabled' if status == '停用' else 'status-active' }}">
                     <td>{{ loop.index }}</td>
                     <td>{{ account['user_name'] or '' }}</td>
                     <td>{{ account['account_number'] or '' }}</td>
@@ -158,11 +172,10 @@
                     <td>{{ account['phone_number'] or '' }}</td>
                     <td>{{ account['department'] or '' }}</td>
                     <td>{{ account['network_area'] or '生产网' }}</td>
+                    <td>{{ status }}</td>
                     <td class="actions">
                         <a href="{{ url_for('edit_account', id=account['id']) }}" class="btn">编辑</a>
-                        <form action="{{ url_for('delete_account', id=account['id']) }}" method="post" style="display: inline;">
-                            <button type="submit" class="btn btn-danger" onclick="return confirm('确定要删除这个账户吗？')">删除</button>
-                        </form>
+                        <button type="button" class="btn btn-danger" onclick="return confirmAndDelete({{ account['id'] }})">删除</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -205,6 +218,38 @@
                 searchTable();
             }
         });
+        
+        // Handle delete with confirmation
+        function confirmAndDelete(accountId) {
+            console.log('Delete button clicked for account:', accountId);
+            
+            // Show confirmation dialog
+            const confirmed = window.confirm('确定要删除这个账户吗？此操作不可撤销！');
+            console.log('User confirmed:', confirmed);
+            
+            if (confirmed) {
+                console.log('Proceeding with delete for account:', accountId);
+                // Create a form dynamically and submit it
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/delete/' + accountId;
+                
+                // Add CSRF token if needed
+                const csrfToken = document.createElement('input');
+                csrfToken.type = 'hidden';
+                csrfToken.name = 'csrf_token';
+                form.appendChild(csrfToken);
+                
+                // Add the form to the document body
+                document.body.appendChild(form);
+                
+                // Submit the form
+                form.submit();
+            } else {
+                console.log('Delete cancelled for account:', accountId);
+                return false; // Prevent default action
+            }
+        }
     </script>
 </body>
 </html>
